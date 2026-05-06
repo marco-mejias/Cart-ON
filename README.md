@@ -12,6 +12,8 @@ Robot asistente guía.
 - [Miembros del equipo](#Miembros-del-equipo)
 
 ## Descripción
+El projecto trata de un robot asistente guía que permite a un usuario preguntar en voz alta donde esta un lugar o algún objeto y este guiará al usuario hacia su destino.
+La idea es que este robot se utilice en lugares como supermercados y colegios, para guiar a aquel que lo necesite.
 
 ## Estructura
 
