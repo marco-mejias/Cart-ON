@@ -3,7 +3,7 @@ Robot asistente guía.
 
 ## Índice del projecto
 - [Descripción](#Descripción)
-- [Arquitectura Tecnológica](#Arquitectura)
+- [Arquitectura Tecnológica](#Arquitectura-tecnologica)
 - [Software](#Software)
 - [Componentes Hardware](#Componentes-Hardware)
 - [Diseño 3D](#Diseño-3D)
