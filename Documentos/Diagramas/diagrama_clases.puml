@@ -1,4 +1,4 @@
-@startuml
+@startuml component_diagram
 title Grocery Assistant Robot - Component Diagram
 
 ' Style
