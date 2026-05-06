@@ -1,4 +1,4 @@
-@startuml
+@startuml layered_diagram
 
 skinparam packageStyle rectangle
 skinparam shadowing false
