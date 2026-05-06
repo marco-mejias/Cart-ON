@@ -1,0 +1,54 @@
+@startuml
+title Grocery Assistant Robot - Component Diagram
+
+' Style
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+' === Components ===
+
+component "Planificador\n(Manager)" as Planner
+
+component "Navegación" as Navigation
+component "Percepción" as Perception
+component "Interacción Humano-Robot" as HRI
+component "Manejo de Datos" as Data
+component "Movimiento y\nManipulación" as Motion
+
+component "Sensorial\n(Publicación)" as Sensors
+
+component "Hardware\n(Cámara, Micro,\nUltrasonido, Motores, Lidar)" as HW
+
+' === Relationships ===
+
+' Planner uses modules
+Planner --> Navigation : <<objetivo>>
+Planner --> Perception : <<objetivo>>
+Planner --> HRI : <<objetivo>>
+Planner --> Data : <<query/update>>
+Planner --> Motion : <<command>>
+
+' Modules interact with Data
+Navigation --> Data : <<leer/escribir>>
+Perception --> Data : <<escribir>>
+HRI --> Data : <<leer/escribir>>
+Motion --> Data : <<leer>>
+
+' Publish/Subscribe with Sensors
+Sensors --> Navigation : <<distance_stream>>
+Sensors --> Perception : <<camera_stream>>
+Sensors --> HRI : <<audio_stream>>
+
+Navigation --> Sensors : <<subscribe>>
+Perception --> Sensors : <<subscribe>>
+HRI --> Sensors : <<subscribe>>
+
+' Motion may also use sensor feedback
+Sensors --> Motion : <<distance_stream>>
+Motion --> Sensors : <<subscribe>>
+
+' Hardware connections
+Sensors --> HW : <<leers>>
+Motion --> HW : <<controls>>
+
+@enduml
