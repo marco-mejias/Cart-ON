@@ -1,8 +1,5 @@
 import requests
 import base64
-import os
-import time
-import pygame
 
 add_commands = ["añadir", "añade", "añádeme", "mete", "apunta", "pon"]
 delete_commands = ["borrar", "borra", "quita", "elimina", "saca"]
@@ -16,10 +13,6 @@ number_mapping = {
     "un": 1, "una": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, 
     "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10
 }
-
-def init_audio_system():
-    # inicializa el sistema multimedia (display de audio)
-    pygame.mixer.init()
 
 def extract_quantity_and_product(spoken_text, command_list):
     # extrae entidades clave de la frase
@@ -61,8 +54,7 @@ def speech_to_text(audio_data, api_key):
     return None
 
 def text_to_speech(text_to_say, api_key):
-    # genera respuesta de voz (display)
-    print(f"robot: {text_to_say}")
+    # genera los bytes de audio a partir de texto (modulo cognitivo puro, no reproduce)
     endpoint_url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
     
     payload = {
@@ -76,22 +68,12 @@ def text_to_speech(text_to_say, api_key):
         response_json = response.json()
         
         if "audioContent" in response_json:
-            audio_bytes = base64.b64decode(response_json["audioContent"])
-            temp_filename = "respuesta_temp.mp3"
-            
-            with open(temp_filename, "wb") as audio_file:
-                audio_file.write(audio_bytes)
-                
-            pygame.mixer.music.load(temp_filename)
-            pygame.mixer.music.play()
-            
-            while pygame.mixer.music.get_busy():
-                time.sleep(0.1)
-                
-            pygame.mixer.music.unload()
-            os.remove(temp_filename)
+            # decodificamos la respuesta a bytes puros y la retornamos
+            return base64.b64decode(response_json["audioContent"])
     except Exception as e:
-        print(f"error reproduciendo audio tts: {e}")
+        print(f"error en la peticion tts: {e}")
+        
+    return None
 
 def parse_intent(raw_text):
     # modulo cognitivo para clasificar la accion requerida

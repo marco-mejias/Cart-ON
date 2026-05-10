@@ -8,30 +8,38 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 from processing.data import data_manager
 from processing.HRI import HRI
 from sensor import sensor
+from actuation.movement import speaker
 
 # inicializar entorno y credenciales
 load_dotenv()
-api_key = os.getenv("api_key")
+api_key = os.getenv("API_KEY")
 
 if not api_key:
     print("error critico: falta la api_key en el archivo .env")
     exit()
 
+def speak(text):
+    # el planificador orquesta la comunicacion: pide el audio a hri y se lo pasa a actuacion
+    print(f"robot: {text}")
+    audio_bytes = HRI.text_to_speech(text, api_key)
+    if audio_bytes:
+        speaker.play_audio(audio_bytes)
+
 def main_loop():
-    # capa 1: toma de decisiones. el planificador orquesta todo el sistema
-    HRI.init_audio_system()
+    # capa 1: toma de decisiones. inicializacion de hardware
+    speaker.init_speaker()
     print("sistema iniciado. el planificador esta orquestando las capas.")
-    HRI.text_to_speech("sistema iniciado. dime qué necesitas.", api_key)
+    speak("sistema iniciado. dime qué necesitas.")
     
     while True:
         print("\nplanificador: esperando eventos sensoriales...")
         
-        # 1. obtener datos de la capa de abstraccion de hardware
+        # 1. obtener datos del sensor (microfono)
         audio_data = sensor.capture_audio()
         if not audio_data:
             continue
 
-        # 2. enviar datos al modulo cognitivo para procesarlos
+        # 2. enviar datos a hri para stt (speech-to-text)
         raw_text = HRI.speech_to_text(audio_data, api_key)
         if not raw_text:
             continue
@@ -45,35 +53,35 @@ def main_loop():
             print("planificador: orden desconocida. ignorando evento.")
             continue
             
-        # 4. interactuar con el manejador de datos segun la intencion
+        # 4. logica de negocio interactuando con data_manager y respondiendo
         shopping_list = data_manager.load_list()
         
         if intent == "add":
             if item:
                 shopping_list[item] = shopping_list.get(item, 0) + quantity
                 data_manager.save_list(shopping_list)
-                HRI.text_to_speech(f"he añadido {quantity} de {item}. ya tienes {shopping_list[item]} en total.", api_key)
+                speak(f"he añadido {quantity} de {item}. ya tienes {shopping_list[item]} en total.")
             else:
-                HRI.text_to_speech("no he entendido qué producto quieres añadir.", api_key)
+                speak("no he entendido qué producto quieres añadir.")
                 
         elif intent == "delete":
             if item in shopping_list:
                 del shopping_list[item]
                 data_manager.save_list(shopping_list)
-                HRI.text_to_speech(f"he borrado el producto {item} completamente de la lista.", api_key)
+                speak(f"he borrado el producto {item} completamente de la lista.")
             else:
-                HRI.text_to_speech(f"no encontré {item} en la lista.", api_key)
+                speak(f"no encontré {item} en la lista.")
                 
         elif intent == "read":
             if shopping_list:
                 formatted_list = ", ".join([f"{qty} {prod}" for prod, qty in shopping_list.items()])
-                HRI.text_to_speech(f"en la lista tienes: {formatted_list}.", api_key)
+                speak(f"en la lista tienes: {formatted_list}.")
             else:
-                HRI.text_to_speech("la lista de la compra está vacía.", api_key)
+                speak("la lista de la compra está vacía.")
                 
         elif intent == "clear":
             data_manager.save_list({})
-            HRI.text_to_speech("he vaciado la lista de la compra por completo.", api_key)
+            speak("he vaciado la lista de la compra por completo.")
 
 if __name__ == "__main__":
     main_loop()
