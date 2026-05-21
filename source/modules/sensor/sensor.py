@@ -28,7 +28,6 @@ class SensoryModule(BaseModule):
                 return None
 
     def loop(self):
-
         self.data_stream['audio'] = self.capture_audio()
     
 

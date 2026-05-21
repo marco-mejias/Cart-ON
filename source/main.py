@@ -12,6 +12,7 @@ from modules.processing.data.data_manager import DataModule
 
 event_bus = Queue()
 sensor_data = {}
+shared_data = {} #Implementar sistema de almacenamiento compartido para datos no relacionados con sensores
 
 api_key = ""
 load_dotenv()
