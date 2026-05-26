@@ -26,14 +26,16 @@ Una vez el terreno es conocido, el sistema emplea modelos de Computer Vision par
 
 ## Software
 
+![Diagrama de capas](documentos/diagramas/diagrama_capas.jpeg)
+
 ## Componentes Hardware
 
 ## Diseño 3D
 
 ## Enlaces:
-[Documento de Especificación de Requisitos del Sistema](https://docs.google.com/document/d/17ys1AdFQXFy2MDise_eSwjZ4mOGR0Uw6nk950iQLUHs/edit?usp=sharing)
+<a href="https://docs.google.com/document/d/17ys1AdFQXFy2MDise_eSwjZ4mOGR0Uw6nk950iQLUHs/edit?usp=sharing" target="_blank">Documento de Especificación de Requisitos del Sistema</a>
 
-[Presupuesto Componentes del Robot](https://docs.google.com/spreadsheets/d/1p9h1Z-hoTksufFietCflG6-x_P8x_Dwd/edit?gid=2124654508#gid=2124654508)
+<a href="https://docs.google.com/spreadsheets/d/1p9h1Z-hoTksufFietCflG6-x_P8x_Dwd/edit?gid=2124654508#gid=2124654508" target="_blank">Presupuesto Componentes del Robot</a>
 
 ## Miembros del equipo:
 - Daniel Cruz Flores. NIU 1709912
