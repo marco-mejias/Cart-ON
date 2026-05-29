@@ -1,6 +1,8 @@
 from core.base_module import BaseModule
 from core.event import Event
 from core.constants import INDENT_OUTPUT
+from core.task import Task
+from modules.actuation.speaker import Speaker
 
 import requests
 import base64
@@ -24,26 +26,32 @@ class HRI(BaseModule):
         "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10
     }
 
-    def __init__(self, name, event_bus, shared_sensor_stream, api_key):
+    def __init__(self, name, event_bus, shared_sensor_stream, api_key, data_task_bus, shared_data):
 
         super().__init__(name, event_bus)
-        self.data_stream = shared_sensor_stream
+        self.sensor_stream = shared_sensor_stream
         self.api_key = api_key
+
+        self.data_task_bus = data_task_bus
+        self.shared_data = shared_data
+        self.speaker = Speaker("Speaker", event_bus, shared_data)
 
     def get_audio(self): 
         """Reads audio without consuming it"""
-        return self.data_stream['audio']
+        return self.sensor_stream['audio']
 
     def consume_audio(self):
         """Consumes (deletes) the audio data"""
-        self.data_stream['audio'] = None
+        self.sensor_stream['audio'] = None
     
     def read_audio(self):
         """Reads audio data and then consumes it"""
-        audio = self.data_stream['audio']
+        audio = self.sensor_stream['audio']
         self.consume_audio()
         return audio
     
+    def add_data_task(self, task):
+        self.data_task_bus.put(task)
     
 
     def extract_quantity_and_product(self, spoken_text, command_list):
@@ -129,11 +137,8 @@ class HRI(BaseModule):
         if not audio_data:
             return
 
-        
-
         raw_text = self.speech_to_text(audio_data)
         
-            
         if not raw_text:
             return
         
@@ -143,35 +148,113 @@ class HRI(BaseModule):
         intent, item, quantity = self.parse_intent(raw_text)
 
         if intent == "unknown":
+            self.speak("No he entendido lo que dijiste. ¿Podrías repetirlo?")
             print(f"{INDENT_OUTPUT}[{self.name}] Unknown order. Ignoring input.")
             return
-    
-        self.publish_event(
-            Event(
-                type="voice_command",
-                data={
-                    "intent": intent,
-                    "item": item,
-                    "quantity": quantity,
-                    "raw_text": raw_text
-                },
-                origin=self.name
+        elif intent == "add":
+            self.add_data_task(
+                Task(
+                    type="add_item", 
+                    data={
+                        "item": item,
+                        "quantity": quantity
+                    }
+                )
             )
-        )
+
+            self.speak(f"He añadido {quantity} de {item}.")
+
+            self.publish_event(
+                Event(
+                    type="item_added",
+                    data={
+                        "item": item,
+                    },
+                    origin=self.name
+                )
+            )
+        
+        elif intent == "delete":
+            self.add_data_task(
+                Task(
+                    type="delete_item", 
+                    data={
+                        "item": item,
+                        "quantity": quantity
+                    }
+                )
+            )
+
+            self.speak(f"He borrado el producto {item} completamente de la lista.")
+
+            self.publish_event(
+                Event(
+                    type="item_deleted",
+                    data={
+                        "item": item,
+                        "quantity": quantity
+                    },
+                    origin=self.name
+                )
+            )
+        elif intent == "read":
+            if self.shared_data['shopping_list']:
+                formatted_list = ", ".join([f"{qty} {prod}" for prod, qty in self.shared_data['shopping_list'].items()])
+                self.speak(f"en la lista tienes: {formatted_list}.")
+            else:
+                self.speak("la lista de la compra está vacía.")
+
+            self.publish_event(
+                Event(
+                    type="read_list",
+                    data=self.shared_data['shopping_list'],
+                    origin=self.name
+                )
+            )
+        elif intent == "clear":
+            self.add_data_task(
+                Task(type="clear_list")
+            )
+
+            self.speak("He vaciado la lista de la compra por completo.")
+
+            self.publish_event(
+                Event(
+                    type="list_cleared",
+                    origin=self.name
+                )
+            )
 
             
     
     def handle_task(self, task):
         if task.type == "speak":
             # Play audio to talk back
-            print(f"    [{self.name}] Playing audio.")
+            print(f"{INDENT_OUTPUT}[{self.name}] Playing audio.")
+            self.speak(task.data)
 
     def speak(self, text):
         # el planificador orquesta la comunicacion: pide el audio a hri y se lo pasa a actuacion
         print(f"{INDENT_OUTPUT}[{self.name}] Robot: {text}")
-        audio_bytes = self.text_to_speech(text, self.api_key)
-        # if audio_bytes:
-        #     speaker.play_audio(audio_bytes)
+        audio_bytes = self.text_to_speech(text)
+        
+        if audio_bytes:
+            self.speaker.play_audio(audio_bytes)
+            # self.shared_data['audio_to_speak'] = audio_bytes
+
+            # self.add_data_task(
+            #     Task(
+            #         type="audio_to_speak", 
+            #         data=audio_bytes
+            #     )
+            # )
+
+            # self.publish_event(
+            #     Event(
+            #         type="speak",
+            #         origin=self.name
+            #     )
+            # )
 
     def loop(self):
         self.process_audio()

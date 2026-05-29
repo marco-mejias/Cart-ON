@@ -6,12 +6,20 @@ from core.constants import INDENT_OUTPUT
 
 class BaseModule(Thread):
 
-    def __init__(self, name, event_queue):
+    def __init__(self, name, event_queue, shared_task_queue=None):
         super().__init__(daemon=True)
 
         self.name = name
-        self.event_queue = event_queue # Para hablar al Planificador
-        self.task_queue = Queue() # Para recibir tareas del Planificador
+
+        # Event queue to talk to Planner
+        self.event_queue = event_queue 
+
+        # Task queue to receive tasks, either from the Planner or other modules
+        if shared_task_queue is None:
+            self.task_queue = Queue()
+        else:
+            self.task_queue = shared_task_queue
+
         self.running = True
 
     def add_task(self, task):

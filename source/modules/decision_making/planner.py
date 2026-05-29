@@ -20,55 +20,38 @@ class Planner(BaseModule):
 
     def handle_event(self, event):
         print(f"[{self.name}] Event received: {event.type} from {event.origin}")
-        if event.type == "voice_command":
-                item = event.data['item']
 
-                print(f"[{self.name}] User requested: {item}")
 
-                intent = event.data['intent']
-
-                if intent == "add":
-                    data_task = Task(
-                        type="add_item", 
-                        data={
-                            "item": item,
-                            "quantity": event.data['quantity'],
-                        }
-                    )
-
-                    self.modules["Data"].add_task(data_task)
-                    print(f"[{self.name}] Task sent to Data Manager: {data_task.type}")
-
-                    nav_task = Task(
+        if event.type == "item_added":
+            item = event.data['item']
+            print(f"[{self.name}] User requested: {item}")
+            self.modules["Navigation"].add_task(
+                Task(
                         type="navigate_to_item",
                         data={
                             "item": item,
                         }
-                    )
+                )
+            )
 
-                    self.modules["Navigation"].add_task(nav_task)
-                    print(f"[{self.name}] Task sent to Navigation: {nav_task.type}")
-                elif intent == "delete":
-                    data_task = Task(
-                        type="delete_item", 
-                        data={
-                            "item": item,
-                            "quantity": event.data['quantity'],
-                        }
-                    )
+            print(f"[{self.name}] Task sent to Navigation: navigate_to_item")
+        elif event.type == "item_deleted":
+            item = event.data['item']
 
-                    self.modules["Data"].add_task(data_task)
-                    print(f"[{self.name}] Task sent to Data Manager: {data_task.type}")
-                elif intent == "read":
-                    pass
-                elif intent == "clear":
-                    data_task = Task(type="clear_list")
-
-                    self.modules["Data"].add_task(data_task)
-                    print(f"[{self.name}] Task sent to Data Manager: {data_task.type}")
+            print(f"[{self.name}] {item} succesfully deleted.")
+        elif event.type == "read_list":
+            print(f"[{self.name}] Reading list...")
+        elif event.type == "list_cleared":
+            print(f"[{self.name}] List succesfully cleared.")
         
         elif event.type == "critical_obstacle":
              print(f"[{self.name}] Emergency stop")
+        elif event.type == "speak":
+            self.modules["Speaker"].add_task(
+                Task(
+                        type="speak_audio"
+                )
+            )
 
     def loop(self):
         
@@ -82,6 +65,12 @@ class Planner(BaseModule):
         print(f"[{self.name}] Started.")
 
         print(f"[{self.name}] Brain Online. Waiting for events...")
+        self.modules["HRI"].add_task(
+                Task(
+                        type="speak",
+                        data="Cerebro en línea. Esperando por eventos..."
+                )
+            )
 
         while self.running:
 

@@ -10,12 +10,16 @@ class DataModule(BaseModule):
     """
     _shopping_file = "shopping_list.json"
 
-    def __init__(self, name, event_bus):
+    def __init__(self, name, event_bus, data_task_bus, shared_data):
 
-        super().__init__(name, event_bus)
+        super().__init__(name, event_bus, data_task_bus)
 
         
-        self.shopping_list = self.load_list()
+        self.shared_data = shared_data
+        self.load_data()
+        
+    def load_data(self):
+        self.shared_data['shopping_list'] = self.load_list()
         
 
     def load_list(self):
@@ -26,22 +30,23 @@ class DataModule(BaseModule):
     
     def save_list(self):
         with open(self._shopping_file, "w", encoding="utf-8") as file:
-            json.dump(self.shopping_list, file, ensure_ascii=False, indent=4)
+            json.dump(self.shared_data['shopping_list'], file, ensure_ascii=False, indent=4)
 
     def handle_task(self, task):
 
         if task.type == "add_item":
-
             item = task.data["item"]
             quantity = task.data["quantity"]
             if item:
-                self.shopping_list[item] = self.shopping_list.get(item, 0) + quantity
+                self.shared_data['shopping_list'][item] = self.shared_data['shopping_list'].get(item, 0) + quantity
             
         elif task.type == "delete_item":
             item = task.data["item"]
-            if item in self.shopping_list:
-                del self.shopping_list[item]
+            if item in self.shared_data['shopping_list']:
+                del self.shared_data['shopping_list'][item]
 
         elif task.type == "clear_list":
+            self.shared_data['shopping_list'] = {}
 
-            self.shopping_list = {}
+        elif task.type == "audio_to_speak":
+            self.shared_data['audio_to_speak'] = task.data

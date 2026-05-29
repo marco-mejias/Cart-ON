@@ -9,11 +9,14 @@ class SensoryModule(BaseModule):
     """
     Layer 3: Continuously polls hardware and 'publishes' data.
     """
-    def __init__(self, name, event_queue, shared_sensor_stream):
+    def __init__(self, name, event_queue, shared_sensor_stream, data_task_bus, shared_data):
         super().__init__(name, event_queue)
         self.data_stream = shared_sensor_stream
         self.recognizer = sr.Recognizer()
         self.microphone = sr.Microphone()
+
+        self.data_task_bus = data_task_bus
+        self.shared_data = shared_data
         
     def capture_audio(self):
         # modulo hardware que captura la entrada de audio del entorno

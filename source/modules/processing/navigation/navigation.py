@@ -6,9 +6,12 @@ import time
 
 class Navigation(BaseModule):
 
-    def __init__(self, name, event_bus, shared_sensor_stream):
+    def __init__(self, name, event_bus, shared_sensor_stream, data_task_bus, shared_data):
         super().__init__(name, event_bus)
-        self.data_stream = shared_sensor_stream
+        self.sensor_stream = shared_sensor_stream
+
+        self.data_task_bus = data_task_bus
+        self.shared_data = shared_data
 
     def handle_task(self, task):
 
