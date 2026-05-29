@@ -2,12 +2,12 @@ import cv2
 import numpy as np
 import os
 
+
 class Display:
     def __init__(self, name, event_bus, shared_data):
         self.name = name
         self.event_bus = event_bus
         self.shared_data = shared_data
-        
         # Dimensió de la pantalla digital en píxels
         self.width = 800
         self.height = 600
@@ -29,21 +29,29 @@ class Display:
             self.headless_mode = True
             print(f"[{self.name}] Alerta: No es detecta monitor (Mode Cloud/Headless Actiu).")
 
+        self.current_image = None #imatge si ni ha
         # Pintem la primera pantalla en repòs
         self.render_frame()
 
-    def update_data(self, status=None, text=None, title=None, data_dict=None, footer=None):
+   # MODIFICAR LA CAPÇALERA I L'INICI DEL MÈTODE update_data
+    def update_data(self, status=None, text=None, title=None, data_dict=None, footer=None, image=None):
         """
         Mètode universal per injectar dades des de l'HRI. 
-        Suporta qualsevol estructura de dades gràcies a data_dict.
         """
-        if status is not None: self.current_status = status
+        if status is not None: 
+            self.current_status = status
+            if status == "LISTENING":
+                self.current_image = None
+                
         if text is not None: self.detected_text = text
         if title is not None: self.panel_title = title.upper()
         if data_dict is not None: self.dynamic_data = data_dict
         if footer is not None: self.footer_message = footer
-
-        # Cada vegada que entren dades noves, redibuixem la matriu de píxels
+        
+        # AFEGIR AQUÍ: Si ens passen una imatge (el mapa), la guardem
+        if image is not None: 
+            self.current_image = image
+            
         self.render_frame()
 
     def render_frame(self):
@@ -85,34 +93,44 @@ class Display:
         cv2.putText(self.frame, user_text, (40, 150), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (220, 220, 220), 1, cv2.LINE_AA)
 
-        # 5. TARGETA CENTRAL DINÀMICA (Agnòstica al tipus de dades)
+# 5. TARGETA CENTRAL DINÀMICA (Substituir o modificar aquest bloc dins de render_frame)
         # Dibuixem el contenidor de fons del panell central
         cv2.rectangle(self.frame, (40, 190), (self.width - 40, self.height - 100), (35, 30, 27), -1)
         cv2.rectangle(self.frame, (40, 190), (self.width - 40, self.height - 100), (70, 70, 70), 1)
 
-        # Títol del panell actual (Llista de la compra, Horaris, Localització, etc.)
+        # Títol del panell actual
         cv2.putText(self.frame, self.panel_title, (60, 225), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, color_accent, 1, cv2.LINE_AA)
 
-        # RENDERITZACIÓ KEY-VALUE AUTOMÀTICA
-        # Comencem a pintar a la línia Y = 265, i anem baixant per cada clau
-        current_y = 265
-        if not self.dynamic_data:
-            cv2.putText(self.frame, "No hi ha dades disponibles en aquest panell.", (60, current_y), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1, cv2.LINE_AA)
-        else:
-            for key, value in self.dynamic_data.items():
-                # Si ens passem del límit de la targeta, deixem de pintar per evitar desbordaments
-                if current_y > self.height - 130:
-                    cv2.putText(self.frame, "[... Més dades ocultes per espai ...]", (60, current_y), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1, cv2.LINE_AA)
-                    break
+        # COMPROVACIÓ D'IMATGE (MAPA) O TEXT D'ESTALVI DE PRESSUPOST
+        if self.current_image is not None:
+            try:
+                # Definim la mida màxima de la caixa central on encaixar el mapa
+                box_w = (self.width - 40) - 40   # 720 píxels
+                box_h = (self.height - 100) - 240 # 260 píxels
                 
-                # Format de la línia: "Clau: Valor"
-                line_text = f"-> {key}: {value}"
-                cv2.putText(self.frame, line_text, (60, current_y), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (240, 240, 240), 1, cv2.LINE_AA)
-                current_y += 30 # Espaiat vertical entre línies
+                # Reajustem la imatge del mapa (Static Map) perquè encaixi perfectament al panell
+                resized_img = cv2.resize(self.current_image, (box_w, box_h), interpolation=cv2.INTER_AREA)
+                
+                # Incrustem la imatge reajustada directament a les coordenades del panell central
+                self.frame[240:240+box_h, 40:40+box_w] = resized_img
+            except Exception as e:
+                cv2.putText(self.frame, f"Error render imatge: {e}", (60, 265), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
+        else:
+            # Si no hi ha imatge, executem el codi de text Key-Value que ja tenies (S'ha de quedar dins del 'else')
+            current_y = 265
+            if not self.dynamic_data:
+                cv2.putText(self.frame, "No hi ha dades disponibles en aquest panell.", (60, current_y), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1, cv2.LINE_AA)
+            else:
+                for key, value in self.dynamic_data.items():
+                    if current_y > self.height - 130:
+                        break
+                    line_text = f"-> {key}: {value}"
+                    cv2.putText(self.frame, line_text, (60, current_y), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (240, 240, 240), 1, cv2.LINE_AA)
+                    current_y += 30
 
         # 6. Peu de pàgina (Logs de baix nivell / Debug)
         cv2.putText(self.frame, self.footer_message, (40, self.height - 40), 

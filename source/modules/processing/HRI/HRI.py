@@ -7,6 +7,19 @@ from modules.actuation.display import Display
 
 import requests
 import base64
+import unicodedata
+
+def normalize_for_display(text: str) -> str:
+    # Normalitza accents (á → a, é → e, ñ → n...)
+    normalized = unicodedata.normalize("NFD", text)
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+
+    # Substitucions manuals opcionals
+    ascii_text = ascii_text.replace("ñ", "n").replace("Ñ", "N")
+    ascii_text = ascii_text.replace("ç", "c").replace("Ç", "C")
+
+    return ascii_text
+
 
 class HRI(BaseModule):
     """
@@ -160,12 +173,12 @@ class HRI(BaseModule):
         if intent == "unknown":
             # REFACTORITZACIÓ PER A UNA INTERACCIÓ MÉS NATURAL:
             self.display.update_data(
-                status="CONFUSED",                          
-                title="Procesando Petición",                
-                data_dict={
-                    "He escuchado": f'"{raw_text}"',        # Mostrem clarament el que ha entès
-                    "->": "No sé cómo ayudarte con esto aún"
-                }
+                status="CONFUSED",                          # Un estat menys agressiu que "ERROR"
+                title="Procesando Petición",                # Títol més natural
+                data_dict = {
+                    "He escuchado": lambda raw_text: f'"{normalize_for_display(raw_text)}"',
+                    "->": "No se como ayudarte con esto aun"
+                },
                 footer="Esperando aclaración del usuario..."
             )
             
