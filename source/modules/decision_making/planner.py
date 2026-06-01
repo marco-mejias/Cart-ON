@@ -35,23 +35,21 @@ class Planner(BaseModule):
             )
 
             print(f"[{self.name}] Task sent to Navigation: navigate_to_item")
+
         elif event.type == "item_deleted":
             item = event.data['item']
 
             print(f"[{self.name}] {item} succesfully deleted.")
+
         elif event.type == "read_list":
             print(f"[{self.name}] Reading list...")
+            
         elif event.type == "list_cleared":
             print(f"[{self.name}] List succesfully cleared.")
         
         elif event.type == "critical_obstacle":
              print(f"[{self.name}] Emergency stop")
-        elif event.type == "speak":
-            self.modules["Speaker"].add_task(
-                Task(
-                        type="speak_audio"
-                )
-            )
+
 
     def loop(self):
         

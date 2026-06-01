@@ -309,21 +309,6 @@ class HRI(BaseModule):
         
         if audio_bytes:
             self.speaker.play_audio(audio_bytes)
-            # self.shared_data['audio_to_speak'] = audio_bytes
-
-            # self.add_data_task(
-            #     Task(
-            #         type="audio_to_speak", 
-            #         data=audio_bytes
-            #     )
-            # )
-
-            # self.publish_event(
-            #     Event(
-            #         type="speak",
-            #         origin=self.name
-            #     )
-            # )
 
     def loop(self):
         self.process_audio()

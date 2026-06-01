@@ -1,0 +1,14 @@
+main.py
+core\base_module.py
+core\constants.py
+core\event.py
+core\task.py
+modules\actuation\display.py
+modules\actuation\movement.py
+modules\actuation\speaker.py
+modules\decision_making\planner.py
+modules\processing\data\data_manager.py
+modules\processing\HRI\HRI.py
+modules\processing\navigation\navigation.py
+modules\processing\perception\perception.py
+modules\sensor\sensor.py
