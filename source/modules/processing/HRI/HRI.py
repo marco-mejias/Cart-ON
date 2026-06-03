@@ -1,260 +1,143 @@
-import sys
-from pathlib import Path
+import threading
 import requests
-import base64
 import time
-import json
-import io  # Para generar la imagen falsa si hace falta
+import os
+import base64
+import tempfile
+import speech_recognition as sr
 
-# --- HACK PARA ENCONTRAR LA CARPETA 'CORE' ---
-current_dir = Path(__file__).resolve().parent
-source_dir = current_dir.parent.parent.parent
-sys.path.append(str(source_dir))
-# ---------------------------------------------
+# Silenciamos pygame antes de importarlo
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
+import pygame
 
 from core.base_module import BaseModule
 from core.event import Event
 from core.constants import INDENT_OUTPUT
 
-# Librerías nativas para las pantallas en Raspberry Pi 4
-from PIL import Image, ImageDraw
-
-try:
-    from luma.core.interface.serial import spi
-    from luma.oled.device import sh1106
-    LUMA_AVAILABLE = True
-except ImportError:
-    LUMA_AVAILABLE = False
-    print("⚠️ [HRI] Librería 'luma' no encontrada. Ejecutando en modo sin pantallas (PC).")
-
 class HRI(BaseModule):
-    """
-    Layer 2: HRI Module (CLIENTE LIGERO). 
-    Controla el hardware local (micrófono, pantallas) y delega el pensamiento a la nube.
-    """
-
-    def __init__(self, name, event_bus, shared_sensor_stream, stt_tts_api_key):
+    def __init__(self, name, event_bus, sensor_data, api_key):
         super().__init__(name, event_bus)
-        self.data_stream = shared_sensor_stream
-        self.api_key = stt_tts_api_key
+        self.sensor_data = sensor_data
+        self.api_key = api_key
+        self.cloud_url = "https://cart-on-api-225606614592.europe-southwest1.run.app/api/v1/interaccion"
         
-        # ☁️ URL DEL CEREBRO EN LA NUBE (Google Cloud Run)
-        self.cloud_brain_url = "https://cart-on-api-225606614592.europe-southwest1.run.app/api/v1/interaccion"
-        print(f"[{self.name}] Módulo ligero iniciado. Conectado a la nube en: {self.cloud_brain_url}")
+        # 🚥 SEMÁFORO: Controla cuándo podemos usar el teclado
+        self.puedo_escuchar = threading.Event()
+        self.puedo_escuchar.set() # Empezamos con luz verde
         
-        # --- CONFIGURACIÓN HARDWARE SPI (Pantallas) ---
-        if LUMA_AVAILABLE:
-            try:
-                self.serial_izq = spi(device=0, port=0, gpio_DC=24, gpio_RST=25)
-                self.serial_der = spi(device=1, port=0, gpio_DC=24, gpio_RST=25)
-                self.ojo_izq = sh1106(self.serial_izq, width=128, height=64)
-                self.ojo_der = sh1106(self.serial_der, width=128, height=64)
-            except Exception as e:
-                print(f"[{self.name}] ERROR iniciando pantallas físicas: {e}")
-                self.ojo_izq = None
-                self.ojo_der = None
-        else:
-            self.ojo_izq = None
-            self.ojo_der = None
-
-        # --- ESTADO EMOCIONAL ---
-        self.emocion_actual = "neutral"
-        self.ultimo_cambio_emocion = time.time()
-
-    def get_audio(self): return self.data_stream['audio']
-    
-    def consume_audio(self): self.data_stream['audio'] = None
-    
-    def read_audio(self):
-        audio = self.data_stream['audio']
-        self.consume_audio()
-        return audio
-
-    # 🚀 LA CONEXIÓN CLOUD: Empaqueta la solicitud y se la manda a Google Cloud Run
-    def query_cloud_brain(self, raw_text):
-        print(f"[{self.name}] ☁️ Enviando petición al servidor central...")
-        data_payload = {"frase_usuario": raw_text}
-        
-        frame_bytes = self.data_stream.get('frame')
-        if frame_bytes:
-            files_payload = {"image_file": ("frame.jpg", frame_bytes, "image/jpeg")}
-        else:
-            # 🖼️ EL PARCHE: Creamos un mini cuadrado negro para que la UAB no se queje
-            img = Image.new('RGB', (10, 10), color='black')
-            img_io = io.BytesIO()
-            img.save(img_io, format='JPEG')
-            files_payload = {"image_file": ("dummy.jpg", img_io.getvalue(), "image/jpeg")}
-            
+        # 🔊 Calentamos el motor de audio en el arranque
         try:
-            response = requests.post(self.cloud_brain_url, data=data_payload, files=files_payload)
-            response.raise_for_status()
-            
-            datos = response.json()
-            print(f"[{self.name}] 🧠 Respuesta de la Nube: {datos}")
-            
-            return (
-                datos.get("intent", "unknown"),
-                datos.get("producto_detectado", None),
-                1, 
-                datos.get("texto", None)
-            )
+            pygame.mixer.init()
+            print(f"{INDENT_OUTPUT}[{self.name}] 🔊 Motor de audio pre-cargado y listo.")
         except Exception as e:
-            print(f"[{self.name}] 🔴 Error conectando al Cerebro Cloud: {e}")
-            return "unknown", None, 1, "He perdido la conexión con mis servidores centrales."
-
-    # Mantenemos STT y TTS porque usan la API directa (es ligero para la Raspberry)
-    def speech_to_text(self, audio_data):
-        audio_wav = audio_data.get_wav_data()
-        audio_b64 = base64.b64encode(audio_wav).decode("utf-8")
-        endpoint_url = f"https://speech.googleapis.com/v1/speech:recognize?key={self.api_key}"
-        payload = {
-            "config": {"encoding": "LINEAR16", "sampleRateHertz": audio_data.sample_rate, "languageCode": "es-ES"},
-            "audio": {"content": audio_b64}
-        }
-        try:
-            response = requests.post(endpoint_url, json=payload)
-            if "results" in response.json(): return response.json()["results"][0]["alternatives"][0]["transcript"].lower().strip()
-        except Exception as e: print(f"SST Connection error: {e}")
-        return None
-    
-    def text_to_speech(self, text_to_say):
-        endpoint_url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={self.api_key}"
-        payload = {
-            "input": {"text": text_to_say},
-            "voice": {"languageCode": "es-ES", "name": "es-ES-Neural2-F"},
-            "audioConfig": {"audioEncoding": "MP3"}
-        }
-        try:
-            response = requests.post(endpoint_url, json=payload)
-            if "audioContent" in response.json(): return base64.b64decode(response.json()["audioContent"])
-        except Exception as e: print(f"TTS Petition error: {e}")
-        return None
-    
-    def set_emocion(self, nueva_emocion):
-        if nueva_emocion != self.emocion_actual:
-            self.emocion_actual = nueva_emocion
-            self.ultimo_cambio_emocion = time.time()
-
-    def renderizar_ojos(self):
-        if not self.ojo_izq or not self.ojo_der: return 
-        canvas_izq = Image.new("1", (128, 64))
-        canvas_der = Image.new("1", (128, 64))
-        draw_izq = ImageDraw.Draw(canvas_izq)
-        draw_der = ImageDraw.Draw(canvas_der)
-
-        if self.emocion_actual == "neutral":
-            draw_izq.rectangle([34, 24, 94, 40], fill="white")
-            draw_der.rectangle([34, 24, 94, 40], fill="white")
-        elif self.emocion_actual == "feliz":
-            draw_izq.chord([34, 20, 94, 50], start=180, end=360, fill="white")
-            draw_der.chord([34, 20, 94, 50], start=180, end=360, fill="white")
-        elif self.emocion_actual == "confuso":
-            draw_izq.ellipse([44, 12, 84, 52], fill="white")
-            draw_der.rectangle([34, 28, 94, 36], fill="white")
-        elif self.emocion_actual == "enfadado":
-            draw_izq.rectangle([34, 24, 94, 40], fill="white")
-            draw_der.rectangle([34, 24, 94, 40], fill="white")
-            draw_izq.polygon([34, 24, 94, 24, 94, 32], fill="black")
-            draw_der.polygon([34, 24, 94, 24, 34, 32], fill="black")
-
-        self.ojo_izq.display(canvas_izq)
-        self.ojo_der.display(canvas_der)
-
-    def process_audio(self):
-        audio_data = self.read_audio()
-        if not audio_data: return
-
-        print(f"{INDENT_OUTPUT}[{self.name}] Escuchando...")
-        raw_text = self.speech_to_text(audio_data)
-        if not raw_text: return
+            print(f"{INDENT_OUTPUT}[{self.name}] 🔴 Aviso: No se pudo iniciar el audio: {e}")
         
-        print(f"{INDENT_OUTPUT}[{self.name}] Usuario dice: \"{raw_text}\"")
-        
-        # 🔄 Disparamos a la NUBE en lugar de usar procesamiento local
-        intent, item, quantity, reply = self.query_cloud_brain(raw_text)
-
-        if intent == "chat" and reply:
-            print(f"{INDENT_OUTPUT}[{self.name}] Charla detectada. Respondiendo...")
-            self.set_emocion("feliz")
-            self.speak(reply)
-            return
-
-        elif intent == "unknown":
-            print(f"{INDENT_OUTPUT}[{self.name}] Orden desconocida o error en la nube.")
-            self.set_emocion("confuso")
-            self.speak(reply if reply else "No te he entendido bien.")
-            return
-    
-        else:
-            self.publish_event(
-                Event(
-                    type="voice_command", 
-                    data={"intent": intent, "item": item, "quantity": quantity, "raw_text": raw_text}, 
-                    origin=self.name
-                )
-            )
+        # Arrancamos el hilo del micrófono real
+        threading.Thread(target=self._escuchar_microfono, daemon=True).start()
 
     def handle_task(self, task):
-        if task.type == "speak": print(f"    [{self.name}] Playing audio.")
-        elif task.type == "set_emotion": self.set_emocion(task.data.get("emotion", "neutral"))
+        if task.type == "SEND_TO_CLOUD":
+            # 🔴 Ponemos el semáforo en rojo para bloquear el teclado mientras piensa
+            self.puedo_escuchar.clear() 
+            
+            texto_usuario = task.data
+            foto_bytes = self.sensor_data.get("last_frame", b'\x00')
+            
+            print(f"{INDENT_OUTPUT}[{self.name}] ☁️ Conectando a la nube...")
+            respuesta = self._hacer_peticion(texto_usuario, foto_bytes)
+            
+            self.publish_event(Event(origin=self.name, type="CLOUD_RESPONSE", data=respuesta))
+            
+        elif task.type == "SPEAK":
+            # Extraemos el paquete que viene de la nube
+            datos_nube = task.data
+            texto = datos_nube.get("texto", "Error en la respuesta")
+            audio_b64 = datos_nube.get("audio_b64", None)
 
-    def speak(self, text):
-        print(f"{INDENT_OUTPUT}[{self.name}] Robot: {text}")
-        audio_bytes = self.text_to_speech(text)
+            print(f"\n{INDENT_OUTPUT}🤖 [Cart-ON Dice]: {texto}\n")
+            
+            # Si la nube nos ha mandado un audio, lo reproducimos
+            if audio_b64:
+                try:
+                    audio_bytes = base64.b64decode(audio_b64)
+                    
+                    # Guardamos el MP3 temporalmente
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+                        fp.write(audio_bytes)
+                        temp_path = fp.name
+                        
+                    # Reproducimos el archivo
+                    pygame.mixer.music.load(temp_path)
+                    pygame.mixer.music.play()
+                    
+                    # Pausamos el código de este hilo hasta que el robot termine de hablar
+                    while pygame.mixer.music.get_busy():
+                        pygame.time.Clock().tick(10)
+                        
+                    # Liberamos el archivo para que Windows nos deje borrarlo limpiamente
+                    pygame.mixer.music.unload()
+                    os.remove(temp_path)
+                except Exception as e:
+                    print(f"{INDENT_OUTPUT}🔴 Error al reproducir audio: {e}")
 
-    def loop(self):
-        self.process_audio()
-        self.renderizar_ojos() 
-        
-        if self.emocion_actual != "neutral" and time.time() - self.ultimo_cambio_emocion > 4.0:
-            self.set_emocion("neutral")
+            # 🟢 Ponemos el semáforo en verde otra vez tras hablar
+            self.puedo_escuchar.set()
 
-# =======================================================================================
-# ZONA DE TEST
-# =======================================================================================
+    def _hacer_peticion(self, frase, foto_bytes):
+        try:
+            archivos = {'image_file': ('frame.jpg', foto_bytes, 'image/jpeg')}
+            datos = {'frase_usuario': frase}
+            res = requests.post(self.cloud_url, files=archivos, data=datos, timeout=15)
+            res.raise_for_status()
+            return res.json()
+        except requests.exceptions.RequestException as e:
+            # Si falla, liberamos el semáforo para no quedarnos atascados
+            self.puedo_escuchar.set()
+            return {"status": "error", "texto": "Perdona, mis antenas no conectan con internet."}
 
-if __name__ == "__main__":
-    print("\n" + "="*50)
-    print(" ☁️ INICIANDO TEST DEL CLIENTE LIGERO HRI ☁️")
-    print("="*50)
+    def _escuchar_microfono(self):
+        # Inicializamos el reconocedor y el micrófono
+        recognizer = sr.Recognizer()
+        mic = sr.Microphone()
 
-    class MockEventBus:
-        def put(self, event):
-            print(f"\n 📬 [BUS FALSO] El HRI intentó publicar un evento:")
-            print(f"      Tipo: {event.type}")
-            print(f"      Datos: {event.data}")
+        print(f"{INDENT_OUTPUT}[{self.name}] 🎤 Calibrando micrófono (ruido ambiente)...")
+        with mic as source:
+            recognizer.adjust_for_ambient_noise(source, duration=2)
+        print(f"{INDENT_OUTPUT}[{self.name}] ✅ Micrófono calibrado y listo.")
 
-    mock_bus = MockEventBus()
-    mock_stream = {"audio": None, "frame": None}
+        time.sleep(1)
+        while self.running:
+            # Esperamos silenciosamente a que el semáforo esté en verde (que el robot no esté hablando)
+            self.puedo_escuchar.wait() 
 
-    # Tu clave original de Google Cloud para el Speech-to-Text
-    API_KEY_GOOGLE = "AIzaSyCMV4L39MGvadx6XLsm_99Comj4sZ5EUn4"
+            try:
+                with mic as source:
+                    print(f"\n{INDENT_OUTPUT}🟢 Te escucho... (Habla ahora o di 'salir')")
+                    # Escucha hasta que dejas de hablar
+                    audio = recognizer.listen(source, timeout=None, phrase_time_limit=10)
 
-    print("\n[!] Encendiendo el módulo HRI (Cliente)...")
-    hri_test = HRI(
-        name="HRI_Test",
-        event_bus=mock_bus,
-        shared_sensor_stream=mock_stream,
-        stt_tts_api_key=API_KEY_GOOGLE
-    )
+                # 🔴 Ponemos el semáforo en rojo para que no nos escuche mientras procesa
+                self.puedo_escuchar.clear()
 
-    print("\n--- PRUEBA DE CONEXIÓN CON TU NUBE DE GOOGLE RUN ---")
-    
-    frases_prueba = [
-        "¿Cuánto cuesta apple?",
-        "Hola maquinita, ¿qué tal estás hoy?"
-    ]
+                print(f"{INDENT_OUTPUT}⏳ Traduciendo tu voz a texto...")
+                # Traducimos usando el motor gratuito de Google en español
+                texto = recognizer.recognize_google(audio, language="es-ES")
+                print(f"{INDENT_OUTPUT}🗣️ Has dicho: '{texto}'")
 
-    for frase in frases_prueba:
-        print(f"\n🗣️ Humano dice: '{frase}'")
-        intent, item, quantity, reply = hri_test.query_cloud_brain(frase)
-        
-        print(f"🤖 Tu servidor en Madrid devuelve:")
-        print(f"   - Intención : {intent}")
-        print(f"   - Producto  : {item}")
-        print(f"   - Cantidad  : {quantity}")
-        print(f"   - Respuesta : {reply}")
+                if texto.lower() == 'salir':
+                    self.publish_event(Event(origin=self.name, type="SHUTDOWN"))
+                    break
+                elif texto.strip():
+                    # Disparamos el evento al orquestador
+                    self.publish_event(Event(origin=self.name, type="VOICE_DETECTED", data=texto))
 
-    print("\n" + "="*50)
-    print(" TEST FINALIZADO.")
-    print("="*50)
+            except sr.UnknownValueError:
+                print(f"{INDENT_OUTPUT}🤷 No te he entendido bien por el ruido. Volviendo a escuchar...")
+                self.puedo_escuchar.set() # Volvemos a dar luz verde
+            except sr.RequestError as e:
+                print(f"{INDENT_OUTPUT}🔴 Error de conexión con el servicio de voz: {e}")
+                self.puedo_escuchar.set()
+            except Exception as e:
+                if self.running:
+                    print(f"{INDENT_OUTPUT}🔴 Error inesperado en el micro: {e}")
+                    self.puedo_escuchar.set()

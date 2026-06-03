@@ -1,59 +1,21 @@
 from core.base_module import BaseModule
 from core.event import Event
-
-from time import sleep
-import speech_recognition as sr
-
+from core.constants import INDENT_OUTPUT
 
 class SensoryModule(BaseModule):
-    """
-    Layer 3: Continuously polls hardware and 'publishes' data.
-    """
-    def __init__(self, name, event_queue, shared_sensor_stream):
-        super().__init__(name, event_queue)
-        self.data_stream = shared_sensor_stream
-        self.recognizer = sr.Recognizer()
-        self.microphone = sr.Microphone()
+    def __init__(self, name, event_bus, sensor_data):
+        super().__init__(name, event_bus)
+        self.sensor_data = sensor_data
         
-    def capture_audio(self):
-        # modulo hardware que captura la entrada de audio del entorno
-        with self.microphone as source:
-            # calibramos un segundo completo para evitar falsos positivos de ruido
-            self.recognizer.adjust_for_ambient_noise(source, duration=1)
-            try:
-                # graba bloques de audio y se detiene si hay silencio
-                audio_data = self.recognizer.listen(source, timeout=None, phrase_time_limit=10)
-                return audio_data
-            except Exception:
-                return None
+        # El cuadrado negro de siempre
+        self.dummy_image = b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.\' ",#\x1c\x1c(7),01444\x1f\'9=82<.342\xff\xdb\x00C\x01\t\t\t\x0c\x0b\x0c\x18\r\r\x182!\x1c!22222222222222222222222222222222222222222222222222\xff\xc0\x00\x11\x08\x00\n\x00\n\x03\x01"\x00\x02\x11\x01\x03\x11\x01\xff\xc4\x00\x15\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\xff\xc4\x00\x14\x10\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xc4\x00\x14\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xc4\x00\x14\x11\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xda\x00\x0c\x03\x01\x00\x02\x11\x03\x11\x00?\x00\x00\x94\xc0\x0f\xff\xd9'
 
-    def loop(self):
-        self.data_stream['audio'] = self.capture_audio()
-    
-
-    def run(self):
-
-        self.data_stream['audio'] = None
-        self.data_stream['distance'] = 5
-
-        self.publish_event(
-                Event(
-                    type="distance_data",
-                    data=42,
-                    origin=self.name
-                )
-            )
-
-
-        self.publish_event(
-            Event(
-                type="critical_obstacle",
-                data=self.data_stream['distance'],
-                origin=self.name
-            )
-        )
-
-        while self.running:
-            self.loop()
-
-            sleep(0.01)
+    def handle_task(self, task):
+        if task.type == "TAKE_PHOTO":
+            print(f"{INDENT_OUTPUT}[{self.name}] 📸 Tomando foto hardware...")
+            
+            # 1. Guardamos la foto en la memoria compartida
+            self.sensor_data["last_frame"] = self.dummy_image
+            
+            # 2. Avisamos al jefe de que ya está lista
+            self.publish_event(Event(origin=self.name, type="PHOTO_READY"))

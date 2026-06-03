@@ -1,10 +1,10 @@
 import base64
+import io
 from fastapi import FastAPI, UploadFile, File, Form
-from modules.decision_making.planner import PlannerCloud
+from orchestrator.cloud_planner import PlannerCloud
+from gtts import gTTS
 
 app = FastAPI(title="Cart-ON API Gateway")
-
-# Instanciamos el Cerebro Central una sola vez al arrancar el servidor
 planner = PlannerCloud()
 
 @app.get("/")
@@ -16,21 +16,26 @@ async def endpoint_hri(
     frase_usuario: str = Form(...),
     image_file: UploadFile = File(...)
 ):
-    """
-    Ruta para la Fase 2 (Interacción Humano-Robot).
-    Recibe el audio/texto y la cámara frontal.
-    """
     try:
         imagen_bytes = await image_file.read()
         mime_type = image_file.content_type
-        
-        # Le pasamos el paquete en crudo (base64) al Planner y que él se apañe
         base64_image = base64.b64encode(imagen_bytes).decode('utf-8')
         
+        # 1. El orquestador decide y la IA redacta el texto
         respuesta_final = planner.procesar_peticion_hri(frase_usuario, base64_image, mime_type)
+        
+        # 2. TTS: Convertimos ese texto en un archivo de audio MP3
+        texto = respuesta_final.get("texto", "")
+        if texto:
+            # lang='es' y tld='es' nos da el acento de España.
+            tts = gTTS(text=texto, lang='es', tld='es')
+            fp = io.BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            
+            # Lo empaquetamos en texto Base64 para que viaje seguro por la red
+            respuesta_final["audio_b64"] = base64.b64encode(fp.read()).decode('utf-8')
+
         return respuesta_final
-
     except Exception as e:
-        return {"status": "error", "texto": f"Error en la capa de red: {str(e)}"}
-
-# ⚠️ Aquí añadiremos en el futuro @app.post("/api/v1/escaneo") para la Fase 1
+        return {"status": "error", "texto": f"Error en el servidor: {str(e)}"}

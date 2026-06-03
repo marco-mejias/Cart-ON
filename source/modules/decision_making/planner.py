@@ -1,105 +1,107 @@
-from core.base_module import BaseModule
+from threading import Thread
+from queue import Empty
 from core.task import Task
 
-class Planner(BaseModule):
-
-    def __init__(self, event_bus):
-        super().__init__("Planner", event_bus)
-        self.modules = {}
-    
-    def append_modules(self, modules):
-         print(f"[{self.name}] Appending modules...")
-         for m in modules:
-              if m.name not in self.modules:
-                   self.modules[m.name] = m
-
-    def handle_event(self, event):
-        print(f"[{self.name}] Event received: {event.type} from {event.origin}")
+class Planner(Thread):
+    def __init__(self, name, event_bus):
+        super().__init__(name=name, daemon=True)
+        self.event_bus = event_bus
+        self.running = True
         
-        # ==========================================
-        # 1. ÓRDENES DE VOZ (Desde HRI/Gemini)
-        # ==========================================
-        if event.type == "voice_command":
-            item = event.data.get('item')
-            quantity = event.data.get('quantity', 1)
-            intent = event.data.get('intent')
-            
-            print(f"[{self.name}] User requested intent: {intent}, item: {item}")
+        # Guardaremos los módulos en un diccionario para mandarles tareas por nombre
+        self.modules = {}
+        
+        self.fase_actual = "fase_2_interaccion"
+        self.frase_pendiente = None 
 
-            if intent == "add" and item:
-                # 1. Añadir a la lista local (JSON)
-                data_task = Task(type="add_item", data={"item": item, "quantity": quantity})
-                self.modules["Data"].add_task(data_task)
-                print(f"[{self.name}] Task sent to Data Manager: {data_task.type}")
-                
-                # 2. Feedback visual y de voz
-                self.modules["HRI"].add_task(Task(type="set_emotion", data={"emotion": "feliz"}))
-                self.modules["HRI"].add_task(Task(type="speak", data={"text": f"Anotado. Buscando {item} en el supermercado."}))
+    def append_modules(self, modules_list):
+        for module in modules_list:
+            self.modules[module.name] = module
 
-                # 3. NUEVO: Pedir a Cloud SQL dónde está ese producto físicamente
-                sql_task = Task(type="request_product_location", data={"item": item})
-                self.modules["Data"].add_task(sql_task)
-                print(f"[{self.name}] Task sent to Data Manager: {sql_task.type}")
-
-            elif intent == "delete" and item:
-                data_task = Task(type="delete_item", data={"item": item, "quantity": quantity})
-                self.modules["Data"].add_task(data_task)
-                print(f"[{self.name}] Task sent to Data Manager: {data_task.type}")
-                
-                self.modules["HRI"].add_task(Task(type="set_emotion", data={"emotion": "feliz"}))
-                self.modules["HRI"].add_task(Task(type="speak", data={"text": f"He quitado {item} de la lista."}))
-
-            elif intent == "read":
-                pass # Aquí podrías añadir lógica para leer la lista en voz alta
-            
-            elif intent == "clear":
-                data_task = Task(type="clear_list", data={})
-                self.modules["Data"].add_task(data_task)
-                print(f"[{self.name}] Task sent to Data Manager: {data_task.type}")
-                
-                self.modules["HRI"].add_task(Task(type="set_emotion", data={"emotion": "feliz"}))
-                self.modules["HRI"].add_task(Task(type="speak", data={"text": "He vaciado toda tu lista de la compra."}))
-
-        # ==========================================
-        # 2. RESPUESTAS DE CLOUD SQL (Desde Data)
-        # ==========================================
-        elif event.type == "product_location_found":
-            nombre = event.data.get("nombre_pantalla")
-            pasillo = event.data.get("pasillo")
-            coord_x = event.data.get("coordenada_x")
-            coord_y = event.data.get("coordenada_y")
-
-            # 1. Avisar por voz de a dónde vamos
-            self.modules["HRI"].add_task(Task(type="speak", data={"text": f"El producto {nombre} está en el {pasillo}. Sígueme."}))
-            
-            # 2. Mandar las coordenadas físicas a los motores
-            nav_task = Task(type="navigate_to", data={"x": coord_x, "y": coord_y})
-            self.modules["Navigation"].add_task(nav_task)
-            print(f"[{self.name}] Task sent to Navigation: Navigating to X:{coord_x}, Y:{coord_y}")
-
-        elif event.type == "product_location_error":
-            # Si SQL no lo encuentra, pedimos disculpas
-            self.modules["HRI"].add_task(Task(type="set_emotion", data={"emotion": "confuso"}))
-            self.modules["HRI"].add_task(Task(type="speak", data={"text": "Lo siento, no tenemos ese producto en nuestro inventario actual."}))
-
-        # ==========================================
-        # 3. SEGURIDAD Y NAVEGACIÓN (Desde Sensor)
-        # ==========================================
-        elif event.type == "critical_obstacle":
-            print(f"[{self.name}] Emergency stop")
-            # Parada de emergencia a los motores
-            self.modules["Navigation"].add_task(Task(type="emergency_stop", data={}))
-            # Feedback interactivo
-            self.modules["HRI"].add_task(Task(type="set_emotion", data={"emotion": "enfadado"}))
-            self.modules["HRI"].add_task(Task(type="speak", data={"text": "¡Cuidado! Obstáculo detectado."}))
-
-    def loop(self):
-        while not self.event_queue.empty():
-            event = self.event_queue.get()
-            self.handle_event(event)
+    def stop(self):
+        self.running = False
 
     def run(self):
-        print(f"[{self.name}] Started.")
-        print(f"[{self.name}] Brain Online. Waiting for events...")
+        print(f"[{self.name}] ⚙️ Iniciando Orquestador (Actor Model)...")
         while self.running:
-            self.loop()
+            try:
+                event = self.event_bus.get(timeout=1.0)
+                
+                # PARCHE: Si por algún motivo llega un diccionario en lugar de un Event, lo adaptamos
+                if isinstance(event, dict):
+                    tipo = event.get("type")
+                    data = event.get("data")
+                    origen = event.get("origin", "Sistema")
+                else:
+                    tipo = event.type
+                    data = event.data
+                    origen = event.origin
+                
+                # Creamos un objeto falso al vuelo para no cambiar tu código de procesar_evento
+                from collections import namedtuple
+                EventoFalso = namedtuple('EventoFalso', ['type', 'data', 'origin'])
+                self.procesar_evento(EventoFalso(tipo, data, origen))
+                
+                self.event_bus.task_done()
+            except Empty:
+                pass
+            except Exception as e:
+                print(f"[{self.name}] 🔴 Error crítico: {e}")
+
+    def procesar_evento(self, event):
+        tipo = event.type
+        data = event.data
+        origen = event.origin
+
+        # ==========================================
+        # 🗣️ 1. HUMANO HABLA
+        # ==========================================
+        if tipo == "VOICE_DETECTED":
+            print(f"[{self.name}] 📥 Evento de {origen}: Humano dijo '{data}'")
+            
+            if self.fase_actual == "fase_1_escaneo":
+                # Si estamos mapeando el súper, guardamos la frase y pedimos foto
+                self.frase_pendiente = data
+                print(f"[{self.name}] 📤 Enviando Task a Sensory: TAKE_PHOTO")
+                self.modules["Sensory"].add_task(Task(type="TAKE_PHOTO"))
+            else:
+                # Si estamos en charla normal (fase 2 o 3), directo a la nube SIN foto
+                print(f"[{self.name}] 📤 Enviando Task a HRI: SEND_TO_CLOUD (solo voz)")
+                self.modules["HRI"].add_task(Task(type="SEND_TO_CLOUD", data=data))
+
+        # 👁️ 2. FOTO LISTA
+        elif tipo == "PHOTO_READY":
+            print(f"[{self.name}] 📥 Evento de {origen}: Foto lista.")
+            if self.frase_pendiente:
+                print(f"[{self.name}] 📤 Enviando Task a HRI: SEND_TO_CLOUD")
+                self.modules["HRI"].add_task(Task(type="SEND_TO_CLOUD", data=self.frase_pendiente))
+                self.frase_pendiente = None
+
+        # ==========================================
+        # ☁️ 3. RESPUESTA DE LA NUBE
+        # ==========================================
+        elif tipo == "CLOUD_RESPONSE":
+            print(f"[{self.name}] 📥 Evento de {origen}: Datos de la nube recibidos.")
+            
+            # Actualizamos fase
+            nuevo_estado = data.get("estado_actual")
+            if nuevo_estado and nuevo_estado != self.fase_actual:
+                print(f"[{self.name}] 🔄 Transición: {self.fase_actual} -> {nuevo_estado}")
+                self.fase_actual = nuevo_estado
+
+            # 🎙️ Hablamos: Le pasamos ÚNICAMENTE el diccionario completo
+            self.modules["HRI"].add_task(Task(type="SPEAK", data=data))
+
+            # Nos movemos
+            comando = data.get("comando_robot")
+            if comando == "START_SLAM":
+                self.modules["Navigation"].add_task(Task(type="START_MAPPING"))
+            elif comando == "START_NAVIGATION":
+                self.modules["Navigation"].add_task(Task(type="NAVIGATE_TO_TARGET"))
+            elif comando == "STOP_MOTORS":
+                self.modules["Navigation"].add_task(Task(type="STOP_MOTORS"))
+
+        # 🛑 4. APAGADO GENERAL
+        elif tipo == "SHUTDOWN":
+            print(f"[{self.name}] 🛑 Apagando orquestador...")
+            self.stop()
