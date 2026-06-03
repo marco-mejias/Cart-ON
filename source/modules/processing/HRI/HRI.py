@@ -6,6 +6,8 @@ import base64
 import tempfile
 import speech_recognition as sr
 
+from modules.actuation.display import Display
+
 # Silenciamos pygame antes de importarlo
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
@@ -20,6 +22,8 @@ class HRI(BaseModule):
         self.sensor_data = sensor_data
         self.api_key = api_key
         self.cloud_url = "https://cart-on-api-225606614592.europe-southwest1.run.app/api/v1/interaccion"
+        
+        self.display = Display("Display", event_bus, shared_data={})
         
         # 🚥 SEMÁFORO: Controla cuándo podemos usar el teclado
         self.puedo_escuchar = threading.Event()
@@ -43,6 +47,15 @@ class HRI(BaseModule):
             texto_usuario = task.data
             foto_bytes = self.sensor_data.get("last_frame", b'\x00')
             
+            self.display.update_data(
+                status="PROCESSING", 
+                text=texto_usuario, 
+                robot_text="", 
+                title="Conectando al Cloud...",
+                data_dict={}
+            )
+            self.display.refresh()
+            
             print(f"{INDENT_OUTPUT}[{self.name}] ☁️ Conectando a la nube...")
             respuesta = self._hacer_peticion(texto_usuario, foto_bytes)
             
@@ -53,6 +66,22 @@ class HRI(BaseModule):
             datos_nube = task.data
             texto = datos_nube.get("texto", "Error en la respuesta")
             audio_b64 = datos_nube.get("audio_b64", None)
+
+            comando = datos_nube.get("comando_robot", "NONE")
+            fase = datos_nube.get("estado_actual", "fase_2_interaccion")
+            
+            self.display.update_data(
+                        status="SUCCESS", 
+                        title="Respuesta Recibida", 
+                        robot_text=texto, 
+                        data_dict={
+                            "Comando activo": comando, 
+                            "Fase actual": fase,
+                            "Motor Audio": "Reproduciendo MP3..."
+                        },
+                        footer="Procesado en el Cloud & Local Edge"
+                    )
+            self.display.refresh()
 
             print(f"\n{INDENT_OUTPUT}🤖 [Cart-ON Dice]: {texto}\n")
             
@@ -141,3 +170,15 @@ class HRI(BaseModule):
                 if self.running:
                     print(f"{INDENT_OUTPUT}🔴 Error inesperado en el micro: {e}")
                     self.puedo_escuchar.set()
+        
+    def loop(self):
+        """
+        Bucle asíncron executat contínuament pel mòdul HRI de fons.
+        S'encarrega de mantenir la finestra d'OpenCV activa i processar els píxels.
+        """
+        # Si el robot no està parlant ni processant, mantenim visualment l'estat d'escolta
+        if self.puedo_escuchar.is_set():
+            self.display.update_data(status="LISTENING", text="Esperando entrada por voz...")
+
+        # Executem el mètode refresh de la Fase 1 per evitar congelacions de la pantalla
+        self.display.refresh()
