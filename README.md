@@ -8,6 +8,7 @@ Robot asistente guía.
 - [Componentes Hardware](#Componentes-Hardware)
 - [Diseño 3D](#Diseño-3D)
 - [Enlaces](#Enlaces)
+- [Instalacion] (#Instalacion)
 - [Miembros del equipo](#Miembros-del-equipo)
 
 ## Descripción
@@ -36,6 +37,19 @@ Una vez el terreno es conocido, el sistema emplea modelos de Computer Vision par
 <a href="https://docs.google.com/document/d/17ys1AdFQXFy2MDise_eSwjZ4mOGR0Uw6nk950iQLUHs/edit?usp=sharing" target="_blank">Documento de Especificación de Requisitos del Sistema</a>
 
 <a href="https://docs.google.com/spreadsheets/d/1p9h1Z-hoTksufFietCflG6-x_P8x_Dwd/edit?gid=2124654508#gid=2124654508" target="_blank">Presupuesto Componentes del Robot</a>
+
+## Instalacion:
+
+Prerrequisitos:
+- ROS 2 Jazzy
+
+Paquetes ROS necesarios:
+- rclpy
+- sensor_msgs
+- nav_msgs
+
+Antes de ejecutar:
+source /opt/ros/jazzy/setup.bash
 
 ## Miembros del equipo:
 - Daniel Cruz Flores. NIU 1709912
