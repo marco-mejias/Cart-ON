@@ -2,15 +2,12 @@
 
 // ===== MOTORS =====
 // Izquierdo
-const int RPWM_IZQ = 3;
+const int RPWM_IZQ = 10;
 const int LPWM_IZQ = 5;
 
 // Derecho
-const int EN_DER = 4;
 const int RPWM_DER = 6;
 const int LPWM_DER = 9;
-
-int velocidad = 150;
 
 // ===== ENCODERS =====
 const int ENC_L_A = 2;
@@ -70,15 +67,21 @@ void parar() {
 String buffer = "";
 
 void processCommand(String cmd) {
+  Serial.print("RECIBIDO: ");
+  Serial.println(cmd);
+  
   cmd.trim();
 
-  if (!cmd.startsWith("CMD,")) return;
+  if (!cmd.startsWith("CMD,")) {
+    Serial.println("ERROR: formato");
+    return;
+  }
 
   cmd.remove(0, 4);
 
   int first = cmd.indexOf(',');
   String action = cmd;
-  int speed = 150;
+  int speed = 250;
 
   if (first != -1) {
     action = cmd.substring(0, first);
