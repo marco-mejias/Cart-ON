@@ -4,6 +4,8 @@ An autonomous guide robot designed for complex indoor navigation, such as superm
 Developed as a collaborative university project by a team of five, Cart-ON interacts with users via voice commands, processes the semantic intent of the request, and safely guides the person to their desired destination or object. 
 This project served as a deep dive into distributed systems, Human-Robot Interaction (HRI), and the integration of SLAM navigation with cloud-based AI services to deliver a real-time, accessible user experience.
 
+⚠ THIS PROJECT IS STILL ON PROGRESS. We will hopefully have a complete and physical version of the robot in the end of the class semester ⚠
+
 ## 🛠️ Technologies 
 
 * Python
