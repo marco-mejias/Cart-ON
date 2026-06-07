@@ -1,59 +1,80 @@
-# Cart-ON
-Robot asistente guía.
+# CART-ON 🤖 - Autonomous Edge-Cloud Robotic Guide
 
-## Índice del projecto
-- [Descripción](#Descripción)
-- [Arquitectura Tecnológica](#Arquitectura-Tecnológica)
-- [Software](#Software)
-- [Componentes Hardware](#Componentes-Hardware)
-- [Diseño 3D](#Diseño-3D)
-- [Enlaces](#Enlaces)
-- [Instalacion] (#Instalacion)
-- [Miembros del equipo](#Miembros-del-equipo)
+An autonomous guide robot designed for complex indoor navigation, such as supermarkets and educational centers. 
+Developed as a collaborative university project by a team of five, Cart-ON interacts with users via voice commands, processes the semantic intent of the request, and safely guides the person to their desired destination or object. 
+This project served as a deep dive into distributed systems, Human-Robot Interaction (HRI), and the integration of SLAM navigation with cloud-based AI services to deliver a real-time, accessible user experience.
 
-## Descripción
-Este proyecto consiste en el desarrollo de un robot guia autónomo diseñado para la orientación en espacios interiores complejos, como supermercados y centros educativos. El robot interactúa con el usuario mediante comandos de voz, procesa la solicitud y guía a la persona hasta el destino u objeto deseado de forma segura y eficiente.
+## 🛠️ Technologies 
 
-## Arquitectura Tecnológica
-- SLAM (Simultaneous Localization and Mapping):
-Utilizamos algoritmos de SLAM para que el robot construya un mapa del entorno mientras calcula su propia posición. Esto se logra mediante la fusión de datos de una cámara (Visual SLAM) y un sensor de distancia (LiDAR y Ultrasonidos), permitiendo una navegación precisa en diferentes escenarios.
+* Python
+* ROS 2 (Jazzy)
+* OpenCV & YOLO (Computer Vision)
+* Google Cloud APIs (STT / TTS / Vision)
+* Vosk (Offline Wake-Word Detection)
+* Qwen LLM (Intent Extraction)
+* LiDAR & Ultrasonic Sensors
+* SQLite / Relational Databases
 
-- Visión Artificial y Reconocimiento de Objetos:
-Una vez el terreno es conocido, el sistema emplea modelos de Computer Vision para diferenciar objetos o productos. Esto permite que el robot no solo sepa donde esta la fruta, sino también que tipo de fruta hay.
+---
 
-- Procesamiento de Lenguaje y Voz (Cloud Services):
-  - Speech-to-Text (STT): Captura del audio ambiental para convertir la voz del usuario en texto procesable mediante servicios en la nube.
-  - Text-to-Speech (TTS): Generación de una respuesta vocal para que el robot confirme el destino o interactúe con el usuario.
+## 💡 My Core Contributions
 
-## Software
+As a core developer for the software architecture, I took ownership of the robot's interaction systems and the distributed backend logic. My main responsibilities included:
+
+### 1. Edge-Cloud Architecture & Event Bus
+To ensure seamless interactions, I designed a distributed architecture combining a Thin Edge running locally on the robot with a Serverless Cloud backend. I implemented a concurrent local Event-Bus that efficiently handles asynchronous events, preventing the navigation loop from blocking during network requests.
+
+### 2. Multimodal HRI & Voice Processing
+I architected the entire voice interaction pipeline. I integrated **Vosk** for lightweight, offline wake-word detection directly on the edge. Once triggered, the system captures ambient audio and offloads it to **Google Cloud STT** (Speech-to-Text). To understand the user, the text is processed through **Qwen LLM** using strict anti-hallucination prompting for precise NLP intent extraction, allowing the robot to map natural language to specific SQL database queries. 
+
+### 3. Dynamic Multimedia Interfaces & Object Recognition
+I built visual interfaces using **OpenCV** to display dynamic scenarios, including real-time universal QR navigation links and Google Maps route rendering. Additionally, I integrated cloud vision APIs to help the robot not just navigate, but actively recognize and classify specific products on shelves.
+
+---
+
+## ⚙️ Engine Architecture & Systems
+
+The robot's software stack is heavily modularized to separate physical locomotion from high-level cognitive tasks.
+
+* **SLAM (Simultaneous Localization and Mapping):** The navigation core uses SLAM algorithms to allow the robot to dynamically map its environment while calculating its precise odometry. This is achieved through sensor fusion, combining Visual SLAM from the camera with physical distance data (LiDAR and Ultrasounds).
+* **Computer Vision Pipeline:** Once the map is generated, the system employs visual models to differentiate objects. This ensures the robot doesn't just know *where* the fruit section is, but can identify the *specific type* of fruit the user requested.
+* **Vocal Feedback (TTS):** The robot utilizes Google Cloud Text-to-Speech to generate organic vocal responses, confirming the destination or requesting clarifications from the user before moving.
 
 ![Diagrama de capas](documentos/diagramas/diagrama_capas.jpeg)
 
-## Componentes Hardware
+---
 
-## Diseño 3D
+## 🧩 Hardware & Navigation Flow
 
-## Enlaces:
-<a href="https://docs.google.com/document/d/17ys1AdFQXFy2MDise_eSwjZ4mOGR0Uw6nk950iQLUHs/edit?usp=sharing" target="_blank">Documento de Especificación de Requisitos del Sistema</a>
+Beyond the software backend, the project required precise coordination between hardware components and physical logic:
 
-<a href="https://docs.google.com/spreadsheets/d/1p9h1Z-hoTksufFietCflG6-x_P8x_Dwd/edit?gid=2124654508#gid=2124654508" target="_blank">Presupuesto Componentes del Robot</a>
+* **Dual Context Operation:** The state machine handles logic for two distinct environments: a Supermarket Assistant (finding products) and a UAB Campus Guide (navigating between classrooms).
+* **Obstacle Avoidance:** Real-time processing of LiDAR data triggers emergency stops or path recalculations when dynamic obstacles (like people or shopping carts) block the planned trajectory.
 
-## Instalacion:
+### 3D Design & Components
+*Detailed hardware schematics and 3D models can be found in the documentation links below.*
 
-Prerrequisitos:
-- ROS 2 Jazzy
+---
 
-Paquetes ROS necesarios:
-- rclpy
-- sensor_msgs
-- nav_msgs
+## 🔗 Documentation Links
 
-Antes de ejecutar:
-source /opt/ros/jazzy/setup.bash
+* <a href="https://docs.google.com/document/d/17ys1AdFQXFy2MDise_eSwjZ4mOGR0Uw6nk950iQLUHs/edit?usp=sharing" target="_blank">System Requirements Specification (SRS)</a>
+* <a href="https://docs.google.com/spreadsheets/d/1p9h1Z-hoTksufFietCflG6-x_P8x_Dwd/edit?gid=2124654508#gid=2124654508" target="_blank">Hardware & Components Budget</a>
 
-## Miembros del equipo:
-- Daniel Cruz Flores. NIU 1709912
-- Felipe Marcano Hurtado. NIU 1635636
-- Marc Solés i Rojas. NIU 1710741
-- Marco Mejías Alés. NIU 1710748
-- Samuel Jesus Outeda Aponte. NIU 1711378
+---
+
+## 🚀 Build & Installation Instructions
+
+**Prerequisites:**
+* ROS 2 Jazzy installed on the host machine.
+
+**Required ROS Packages:**
+* `rclpy`
+* `sensor_msgs`
+* `nav_msgs`
+
+**Execution Steps:**
+1. Clone the repository.
+2. Source the ROS 2 environment:
+   ```bash
+   source /opt/ros/jazzy/setup.bash
