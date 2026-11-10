@@ -4,7 +4,7 @@ An autonomous guide robot designed for complex indoor navigation, such as superm
 Developed as a collaborative university project by a team of five, Cart-ON interacts with users via voice commands, processes the semantic intent of the request, and safely guides the person to their desired destination or object. 
 This project served as a deep dive into distributed systems, Human-Robot Interaction (HRI), and the integration of SLAM navigation with cloud-based AI services to deliver a real-time, accessible user experience.
 
-⚠ THIS PROJECT IS STILL ON PROGRESS. We will hopefully have a complete and physical version in the end of the class semester. ⚠
+
 
 ## 🛠️ Technologies 
 
@@ -28,6 +28,8 @@ To ensure seamless interactions, I designed a distributed architecture combining
 
 ### 2. Multimodal HRI & Voice Processing
 I architected the entire voice interaction pipeline. I integrated **Vosk** for lightweight, offline wake-word detection directly on the edge. Once triggered, the system captures ambient audio and offloads it to **Google Cloud STT** (Speech-to-Text). To understand the user, the text is processed through **Qwen LLM** using strict anti-hallucination prompting for precise NLP intent extraction, allowing the robot to map natural language to specific SQL database queries. 
+
+<img width="480" height="864" alt="carton-2" src="https://github.com/user-attachments/assets/cf4ed0b5-b9ea-404c-9e2f-5e7e6749ba9f" />
 
 ### 3. Dynamic Multimedia Interfaces & Object Recognition
 I built visual interfaces using **OpenCV** to display dynamic scenarios, including real-time universal QR navigation links and Google Maps route rendering. Additionally, I integrated cloud vision APIs to help the robot not just navigate, but actively recognize and classify specific products on shelves.
@@ -55,6 +57,8 @@ Beyond the software backend, the project required precise coordination between h
 
 ### 3D Design & Components
 *Detailed hardware schematics and 3D models can be found in the documentation links below.*
+
+<img width="1280" height="720" alt="carton-1" src="https://github.com/user-attachments/assets/3470b32b-3364-4f23-9d4c-c8999dd6466c" />
 
 ---
 
